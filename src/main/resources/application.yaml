@@ -1,13 +1,13 @@
 app:
-  url: http://localhost:8080
+  url: ${APP_URL:http://localhost:8081}
 spring:
   application:
 
     name: shortener-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/shortener
-    username: postgres
-    password: secret
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/shortener_postgres}
+    username: ${$DB_USERNAME:postgres}
+    password: ${$DB_PASSWORD:secret}
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
 

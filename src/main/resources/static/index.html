@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>URL Shortener</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 0 16px;
+            color: #222;
+        }
+        label { display: block; margin-top: 12px; }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 4px;
+            box-sizing: border-box;
+            border: 1px solid #999;
+        }
+        button {
+            margin-top: 12px;
+            padding: 8px 16px;
+            border: 1px solid #333;
+            background: #fff;
+            cursor: pointer;
+        }
+        #result {
+            display: none;
+            margin-top: 24px;
+            padding: 12px;
+            border: 1px solid #999;
+        }
+        #result div { margin-bottom: 6px; word-break: break-all; }
+        #error { margin-top: 16px; color: #b00020; }
+    </style>
+</head>
+<body>
+<h1>URL Shortener</h1>
+
+<label>Long URL
+    <input id="url" type="text" placeholder="https://example.com/very/long/path">
+</label>
+
+<label>Expires at (optional)
+    <input id="expires" type="datetime-local">
+</label>
+
+<button id="create">Shorten</button>
+
+<p id="error"></p>
+
+<div id="result">
+    <div>Short link: <a id="shortLink" href="#" target="_blank"></a></div>
+    <div>Original URL: <span id="original"></span></div>
+    <div>Created: <span id="created"></span></div>
+    <div>Expires: <span id="expiresAt"></span></div>
+    <div>Clicks: <span id="clicks">0</span></div>
+    <button id="refresh">Refresh clicks</button>
+    <button id="delete">Delete link</button>
+</div>
+
+<script>
+    // Empty string: the page is served by the Spring app itself.
+    // If the page is opened separately, use 'http://localhost:8080' (CORS must be configured).
+    const API = '';
+
+    let currentCode = null;
+
+    const urlInput = document.getElementById('url');
+    const expiresInput = document.getElementById('expires');
+    const errorEl = document.getElementById('error');
+    const resultEl = document.getElementById('result');
+    const shortLink = document.getElementById('shortLink');
+    const originalEl = document.getElementById('original');
+    const createdEl = document.getElementById('created');
+    const expiresAtEl = document.getElementById('expiresAt');
+    const clicksEl = document.getElementById('clicks');
+
+    function showError(message) {
+        errorEl.textContent = message;
+    }
+
+    function formatDate(value) {
+        return value ? new Date(value).toLocaleString() : 'never';
+    }
+
+    async function readError(response) {
+        const text = await response.text();
+        try {
+            return Object.values(JSON.parse(text)).join(', ');
+        } catch (e) {
+            return text;
+        }
+    }
+
+    async function loadInfo() {
+        const response = await fetch(API + '/api/links/' + currentCode);
+        if (!response.ok) {
+            showError(await readError(response));
+            return;
+        }
+        const data = await response.json();
+        originalEl.textContent = data.originalUrl;
+        createdEl.textContent = formatDate(data.createdAt);
+        expiresAtEl.textContent = formatDate(data.expiresAt);
+    }
+
+    async function loadClicks() {
+        const response = await fetch(API + '/api/links/' + currentCode + '/stats');
+        if (!response.ok) {
+            showError(await readError(response));
+            return;
+        }
+        const data = await response.json();
+        clicksEl.textContent = data.clicks;
+    }
+
+    document.getElementById('create').addEventListener('click', async () => {
+        showError('');
+        const body = { originalUrl: urlInput.value };
+        if (expiresInput.value) {
+            body.expiresAt = expiresInput.value;
+        }
+
+        const response = await fetch(API + '/api/links', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+            showError(await readError(response));
+            return;
+        }
+
+        const data = await response.json();
+        currentCode = data.shortCode;
+        shortLink.textContent = data.shortUrl;
+        shortLink.href = data.shortUrl;
+        resultEl.style.display = 'block';
+
+        await loadInfo();
+        await loadClicks();
+    });
+
+    document.getElementById('refresh').addEventListener('click', loadClicks);
+
+    document.getElementById('delete').addEventListener('click', async () => {
+        showError('');
+        const response = await fetch(API + '/api/links/' + currentCode, { method: 'DELETE' });
+        if (response.status === 204) {
+            resultEl.style.display = 'none';
+            currentCode = null;
+        } else {
+            showError(await readError(response));
+        }
+    });
+</script>
+</body>
+</html>

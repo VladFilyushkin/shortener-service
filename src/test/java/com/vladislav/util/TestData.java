@@ -11,10 +11,10 @@ import java.time.LocalDateTime;
 
 public class TestData {
 
-    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
     private static final String CREATE_LINK_RQ_BODY = "bodyRq/create-link.json";
-    private static final String CREATE_INVALID_LINK_RQ_BODY = "bodyRq/create-link-invalid.json";
+    private static final String CREATE_INVALID_LINK_RQ_BODY = "bodyRq/create-invalid-link.json";
     private static final String CREATE_EXPIRED_LINK_RQ_BODY = "bodyRq/create-expired-link.json";
 
     public static <T> T deserialize(String path, Class<T> clazz) throws IOException {
