@@ -9,10 +9,13 @@ import com.vladislav.exception.LinkExpiredException;
 import com.vladislav.exception.LinkNotFoundException;
 import com.vladislav.mapper.LinkMapper;
 import com.vladislav.repository.LinkRepository;
+import com.vladislav.service.LinkLookupService;
 import com.vladislav.service.LinkService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -23,6 +26,7 @@ public class LinkServiceImpl implements LinkService {
 
     private final LinkRepository linkRepository;
     private final LinkMapper linkMapper;
+    private final LinkLookupService linkLookupService;
     @Value("${app.url}")
     private String baseUrl;
 
@@ -43,32 +47,32 @@ public class LinkServiceImpl implements LinkService {
     }
 
     @Override
+    @Transactional
     public String redirect(String shortCode) {
-        Link link = findOrThrow(shortCode);
+        LinkInfoResponse link = linkLookupService.find(shortCode);
         if (link.getExpiresAt() != null && link.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new LinkExpiredException("Link is already expired");
         }
-        link.setClicks(link.getClicks() + 1);
-        Link savedLink = linkRepository.save(link);
-        return savedLink.getOriginalUrl();
+        if (linkRepository.incrementClicks(shortCode) == 0) {
+            throw new LinkNotFoundException("Link with shortcode: " + shortCode + " is not found");
+        }
+        return link.getOriginalUrl();
     }
 
     @Override
     public LinkInfoResponse getLink(String shortCode) {
-        Link link = findOrThrow(shortCode);
-        return linkMapper.fromEntityToInfoDto(link);
+        return linkLookupService.find(shortCode);
     }
 
     @Override
     public LinkStatsResponse getStats(String shortCode) {
-        Link link = findOrThrow(shortCode);
-        return linkMapper.fromEntityToStatsDto(link);
+        return linkMapper.fromEntityToStatsDto(findOrThrow(shortCode));
     }
 
     @Override
+    @CacheEvict(cacheNames = "link", key = "#shortCode")
     public void deleteLink(String shortCode) {
-        Link link = findOrThrow(shortCode);
-        linkRepository.delete(link);
+        linkRepository.delete(findOrThrow(shortCode));
     }
 
     private String generateShortCode() {

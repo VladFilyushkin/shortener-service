@@ -17,6 +17,8 @@ import static com.vladislav.util.TestData.getInvalidLinkRqBody;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 public class LinkControllerTest extends AbstractIntegrationControllerTest {
 
@@ -174,5 +176,17 @@ public class LinkControllerTest extends AbstractIntegrationControllerTest {
                 .asString();
 
         assertEquals(String.format(NOT_FOUND_MESSAGE, UNKNOWN_SHORT_CODE), message);
+    }
+
+    @Test
+    @SneakyThrows
+    void shouldReturn429WhenRateLimitIsExceeded() {
+        when(rateLimitService.isRateLimited(anyString())).thenReturn(true);
+
+        given()
+                .contentType(ContentType.JSON)
+                .body(getCreateLinkRqBody())
+                .when().post("/api/links")
+                .then().statusCode(429);
     }
 }

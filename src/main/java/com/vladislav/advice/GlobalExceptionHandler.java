@@ -2,6 +2,7 @@ package com.vladislav.advice;
 
 import com.vladislav.exception.LinkExpiredException;
 import com.vladislav.exception.LinkNotFoundException;
+import com.vladislav.exception.TooManyRequestsException;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -35,5 +36,11 @@ public class GlobalExceptionHandler {
             exceptions.put(error.getField(), error.getDefaultMessage());
         }
         return exceptions;
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public String handleTooManyRequestsException(TooManyRequestsException e) {
+        return e.getMessage();
     }
 }

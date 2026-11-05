@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +23,8 @@ public interface LinkController {
             @ApiResponse(responseCode = "400", description = "Invalid or blank URL")
     })
     @PostMapping()
-    ResponseEntity<LinkResponse> create(@RequestBody @Valid CreateLinkRequest linkRequest);
+    ResponseEntity<LinkResponse> create(@RequestBody @Valid CreateLinkRequest linkRequest,
+                                        HttpServletRequest httpRequest);
 
     @Operation(summary = "Get link information")
     @ApiResponses({

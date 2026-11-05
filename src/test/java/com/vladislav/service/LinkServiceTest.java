@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static com.vladislav.util.TestData.*;
@@ -37,6 +38,9 @@ class LinkServiceTest {
 
     @Mock
     private LinkMapper linkMapper;
+
+    @Mock
+    private LinkLookupService linkLookupService;
 
     @InjectMocks
     private LinkServiceImpl linkService;
@@ -78,54 +82,70 @@ class LinkServiceTest {
 
     @Test
     void shouldRedirectAndIncreaseClicks() {
-        var link = getLinkForUnit();
+        var info = getLinkInfoResponseForUnit();
 
-        when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(link));
-        when(linkRepository.save(link)).thenReturn(link);
+        when(linkLookupService.find(SHORT_CODE)).thenReturn(info);
+        when(linkRepository.incrementClicks(SHORT_CODE)).thenReturn(1);
 
         var result = linkService.redirect(SHORT_CODE);
 
-        assertEquals(link.getOriginalUrl(), result);
-        assertEquals(1L, link.getClicks());
-        verify(linkRepository).save(link);
+        assertEquals(info.getOriginalUrl(), result);
+        verify(linkRepository).incrementClicks(SHORT_CODE);
+    }
+
+    @Test
+    void shouldRedirectWhenExpirationIsInFuture() {
+        var info = getLinkInfoResponseWithExpirationForUnit(LocalDateTime.now().plusDays(1));
+
+        when(linkLookupService.find(SHORT_CODE)).thenReturn(info);
+        when(linkRepository.incrementClicks(SHORT_CODE)).thenReturn(1);
+
+        assertEquals(info.getOriginalUrl(), linkService.redirect(SHORT_CODE));
     }
 
     @Test
     void shouldThrowExceptionWhenRedirectLinkIsNotFound() {
-        when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.empty());
+        when(linkLookupService.find(SHORT_CODE)).thenThrow(new LinkNotFoundException("not found"));
 
         assertThrows(LinkNotFoundException.class, () -> linkService.redirect(SHORT_CODE));
-        verify(linkRepository, never()).save(any());
+        verify(linkRepository, never()).incrementClicks(anyString());
     }
 
     @Test
     void shouldThrowExceptionWhenLinkIsExpired() {
-        var link = getExpiredLinkForUnit();
+        var info = getLinkInfoResponseWithExpirationForUnit(LocalDateTime.now().minusDays(1));
 
-        when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(link));
+        when(linkLookupService.find(SHORT_CODE)).thenReturn(info);
 
         assertThrows(LinkExpiredException.class, () -> linkService.redirect(SHORT_CODE));
-        assertEquals(0L, link.getClicks());
-        verify(linkRepository, never()).save(any());
+        verify(linkRepository, never()).incrementClicks(anyString());
+    }
+
+    @Test
+    void shouldThrowNotFoundWhenLinkIsCachedButAlreadyDeletedFromDb() {
+        var info = getLinkInfoResponseForUnit();
+
+        when(linkLookupService.find(SHORT_CODE)).thenReturn(info);
+        when(linkRepository.incrementClicks(SHORT_CODE)).thenReturn(0);
+
+        assertThrows(LinkNotFoundException.class, () -> linkService.redirect(SHORT_CODE));
     }
 
     @Test
     void shouldFindLinkInfo() {
-        var link = getLinkForUnit();
-        var infoResponse = getLinkInfoResponseForUnit();
+        var info = getLinkInfoResponseForUnit();
 
-        when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(link));
-        when(linkMapper.fromEntityToInfoDto(link)).thenReturn(infoResponse);
+        when(linkLookupService.find(SHORT_CODE)).thenReturn(info);
 
         var result = linkService.getLink(SHORT_CODE);
 
-        assertEquals(infoResponse.getShortCode(), result.getShortCode());
-        assertEquals(infoResponse.getOriginalUrl(), result.getOriginalUrl());
+        assertEquals(info.getShortCode(), result.getShortCode());
+        assertEquals(info.getOriginalUrl(), result.getOriginalUrl());
     }
 
     @Test
     void shouldThrowExceptionWhenLinkInfoIsNotFound() {
-        when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.empty());
+        when(linkLookupService.find(SHORT_CODE)).thenThrow(new LinkNotFoundException("not found"));
 
         assertThrows(LinkNotFoundException.class, () -> linkService.getLink(SHORT_CODE));
     }
@@ -138,9 +158,7 @@ class LinkServiceTest {
         when(linkRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(link));
         when(linkMapper.fromEntityToStatsDto(link)).thenReturn(statsResponse);
 
-        var result = linkService.getStats(SHORT_CODE);
-
-        assertEquals(statsResponse.getClicks(), result.getClicks());
+        assertEquals(statsResponse.getClicks(), linkService.getStats(SHORT_CODE).getClicks());
     }
 
     @Test

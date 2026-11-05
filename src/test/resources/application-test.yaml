@@ -1,4 +1,6 @@
 spring:
+  cache:
+    type: none
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.yaml
   jpa:
